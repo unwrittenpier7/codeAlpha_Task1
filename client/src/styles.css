@@ -1,0 +1,97 @@
+.app {
+  text-align: center;
+  padding: 20px;
+}
+.home {
+  margin-top: 20px;
+}
+.home input {
+  padding: 10px;
+  margin-right: 10px;
+}
+.home a {
+  padding: 10px 20px;
+  background: #007bff;
+  color: white;
+  text-decoration: none;
+  border-radius: 5px;
+}
+.video-room {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+video {
+  width: 300px;
+  height: 200px;
+  margin: 10px;
+  border: 1px solid #ccc;
+}
+button {
+  padding: 10px 20px;
+  margin: 10px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+input[type="file"] {
+  margin: 10px;
+}
+canvas {
+  border: 1px solid #ccc;
+  margin: 10px;
+}
+.video-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.controls {
+  margin-bottom: 20px;
+}
+.video-room {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.video-header {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.control-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.control-bar button {
+  padding: 6px 12px;
+  font-weight: bold;
+  background-color: #007bff;
+  border: none;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.control-bar button:hover {
+  background-color: #0056b3;
+}
+
+.file-share {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.file-share input[type='file'] {
+  margin: 10px 0;
+}
