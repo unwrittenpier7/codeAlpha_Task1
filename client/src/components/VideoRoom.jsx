@@ -8,7 +8,7 @@ import Video from './Video';
 import Whiteboard from './Whiteboard';
 
 const socket = io('http://localhost:5000');
-const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || 'fallback-secret-key';
+const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || 'c0d15d4b86a55936b6429ce88e12d7dda02ec848b171d7be420d3fd8946ee3f9';
 
 function VideoRoom() {
   const { roomId } = useParams();
