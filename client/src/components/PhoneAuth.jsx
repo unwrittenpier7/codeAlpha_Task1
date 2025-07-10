@@ -1,74 +1,87 @@
-// src/components/PhoneAuth.jsx
-
-import React, { useState } from 'react';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '../firebase';
 
-function PhoneAuth({ onLoginSuccess }) {
-  const [phoneNumber, setPhoneNumber] = useState('');
+const PhoneAuth = ({ onLoginSuccess }) => {
+  const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [confirmationResult, setConfirmationResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [recaptchaReady, setRecaptchaReady] = useState(false);
 
-  const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {
-          console.log('Recaptcha verified');
-        },
-      });
-    }
-  };
+  useEffect(() => {
+    const setupRecaptcha = async () => {
+      try {
+        const { RecaptchaVerifier } = await import('firebase/auth');
+
+        if (!window.recaptchaVerifier) {
+          window.recaptchaVerifier = new RecaptchaVerifier(
+            'recaptcha-container',
+            {
+              size: 'invisible',
+              callback: (response) => {
+                console.log('✅ reCAPTCHA solved:', response);
+              },
+              'expired-callback': () => {
+                console.warn('⚠️ reCAPTCHA expired.');
+              },
+            },
+            auth
+          );
+
+          await window.recaptchaVerifier.render();
+          setRecaptchaReady(true);
+        }
+      } catch (err) {
+        console.error('❌ Failed to initialize reCAPTCHA:', err);
+      }
+    };
+
+    setupRecaptcha();
+  }, []);
 
   const sendOTP = async () => {
-    setError('');
-    setLoading(true);
-    setupRecaptcha();
-    const appVerifier = window.recaptchaVerifier;
+    if (!recaptchaReady || !window.recaptchaVerifier) {
+      alert('⚠️ reCAPTCHA not ready yet.');
+      return;
+    }
+
+    if (!phone.startsWith('+')) {
+      alert('⚠️ Use country code. e.g. +91...');
+      return;
+    }
 
     try {
-      const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      setConfirmationResult(result);
-    } catch (err) {
-      setError('Failed to send OTP. Make sure the number is valid.');
-      console.error(err);
-    } finally {
-      setLoading(false);
+      const confirmation = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
+      setConfirmationResult(confirmation);
+      alert('✅ OTP sent!');
+    } catch (error) {
+      console.error('❌ OTP Error:', error);
+      alert('Failed to send OTP: ' + error.message);
     }
   };
 
   const verifyOTP = async () => {
-    if (!otp || !confirmationResult) return;
-
     try {
       const result = await confirmationResult.confirm(otp);
-      console.log('User signed in:', result.user);
-      if (onLoginSuccess) onLoginSuccess(result.user);
-    } catch (err) {
-      setError('Invalid OTP. Please try again.');
-      console.error(err);
+      alert('✅ Phone Verified!');
+      onLoginSuccess(result.user);
+    } catch (error) {
+      alert('❌ Invalid OTP');
     }
   };
 
   return (
-    <div className="phone-auth">
-      <h2>Login with Phone</h2>
+    <div>
+      <h2>📱 Phone Login</h2>
+      <input
+        type="tel"
+        placeholder="+91XXXXXXXXXX"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+      />
+      <button onClick={sendOTP} disabled={!recaptchaReady}>Send OTP</button>
 
-      {!confirmationResult ? (
-        <>
-          <input
-            type="tel"
-            placeholder="+1XXXXXXXXXX"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-          />
-          <button onClick={sendOTP} disabled={loading}>
-            {loading ? 'Sending OTP...' : 'Send OTP'}
-          </button>
-        </>
-      ) : (
+      {confirmationResult && (
         <>
           <input
             type="text"
@@ -79,12 +92,9 @@ function PhoneAuth({ onLoginSuccess }) {
           <button onClick={verifyOTP}>Verify OTP</button>
         </>
       )}
-
       <div id="recaptcha-container"></div>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
-}
+};
 
 export default PhoneAuth;

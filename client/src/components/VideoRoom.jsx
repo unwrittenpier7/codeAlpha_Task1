@@ -2,15 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import io from 'socket.io-client';
 import Peer from 'simple-peer';
 import { useParams } from 'react-router-dom';
-import { getAuth } from 'firebase/auth';
 import CryptoJS from 'crypto-js';
 import Video from './Video';
 import Whiteboard from './Whiteboard';
 
-const socket = io('http://localhost:5000');
-const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || 'c0d15d4b86a55936b6429ce88e12d7dda02ec848b171d7be420d3fd8946ee3f9';
+const socket = io('http://localhost:5000'); // Update to your deployed URL if needed
+const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || 'fallback-secret-key';
 
-function VideoRoom() {
+function VideoRoom({ user }) {
   const { roomId } = useParams();
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const [showFileShare, setShowFileShare] = useState(false);
@@ -24,12 +23,8 @@ function VideoRoom() {
   const peersRef = useRef([]);
   const streamRef = useRef();
   const screenStreamRef = useRef();
-  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const auth = getAuth();
-    setUser(auth.currentUser);
-
     const setupMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -146,23 +141,25 @@ function VideoRoom() {
   };
 
   const toggleMute = () => {
-    const audioTrack = streamRef.current?.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setIsMuted(!audioTrack.enabled);
+    if (streamRef.current) {
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMuted(!audioTrack.enabled);
+      }
     }
   };
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
-    if (file && user) {
+    if (file) {
       const reader = new FileReader();
       reader.onload = () => {
         const fileData = reader.result;
         socket.emit('send-file', {
           fileName: file.name,
           fileData,
-          senderId: user.uid,
+          senderId: user?.uid || 'guest',
           roomId,
         });
       };
@@ -184,52 +181,47 @@ function VideoRoom() {
 
   return (
     <div className="video-room">
-      {user ? (
-        <>
-          <div className="video-section">
-            <video muted ref={userVideo} autoPlay playsInline />
-            {isScreenSharing && <video ref={screenVideo} autoPlay playsInline />}
-            {peers.map((peer) => (
-              <Video key={peer.peerId} peer={peer.peer} />
+      <div className="video-section">
+        <video muted ref={userVideo} autoPlay playsInline />
+        {isScreenSharing && <video ref={screenVideo} autoPlay playsInline />}
+        {peers.map((peer) => (
+          <Video key={peer.peerId} peer={peer.peer} />
+        ))}
+      </div>
+
+      <div className="controls">
+        <button onClick={isScreenSharing ? stopScreenShare : startScreenShare}>
+          {isScreenSharing ? 'Stop Screen Share' : 'Start Screen Share'}
+        </button>
+        <button onClick={toggleMute}>
+          {isMuted ? 'Unmute Mic' : 'Mute Mic'}
+        </button>
+        <button onClick={() => setShowFileShare((prev) => !prev)}>
+          {showFileShare ? 'Hide File Share' : 'Show File Share'}
+        </button>
+        <button onClick={() => setShowWhiteboard((prev) => !prev)}>
+          {showWhiteboard ? 'Hide Whiteboard' : 'Show Whiteboard'}
+        </button>
+      </div>
+
+      {showFileShare && (
+        <div className="file-share">
+          <input type="file" onChange={handleFileUpload} />
+          <h3>Shared Files:</h3>
+          <ul>
+            {files.map((file, index) => (
+              <li key={index}>
+                <a href="#" onClick={() => handleFileDownload(file.fileName, file.fileData)}>
+                  {file.fileName}
+                </a>{' '}
+                (from {file.senderId})
+              </li>
             ))}
-          </div>
-
-          <div className="controls">
-            <button onClick={isScreenSharing ? stopScreenShare : startScreenShare}>
-              {isScreenSharing ? 'Stop Screen Share' : 'Start Screen Share'}
-            </button>
-            <button onClick={toggleMute}>
-              {isMuted ? 'Unmute Mic' : 'Mute Mic'}
-            </button>
-            <button onClick={() => setShowFileShare((prev) => !prev)}>
-              {showFileShare ? 'Hide File Share' : 'Show File Share'}
-            </button>
-            <button onClick={() => setShowWhiteboard((prev) => !prev)}>
-              {showWhiteboard ? 'Hide Whiteboard' : 'Show Whiteboard'}
-            </button>
-          </div>
-
-          {showFileShare && (
-            <div className="file-share">
-              <input type="file" onChange={handleFileUpload} />
-              <h3>Shared Files:</h3>
-              <ul>
-                {files.map((file, index) => (
-                  <li key={index}>
-                    <a href="#" onClick={() => handleFileDownload(file.fileName, file.fileData)}>
-                      {file.fileName}
-                    </a> (from {file.senderId})
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {showWhiteboard && <Whiteboard roomId={roomId} />}
-        </>
-      ) : (
-        <p>Authenticating...</p>
+          </ul>
+        </div>
       )}
+
+      {showWhiteboard && <Whiteboard roomId={roomId} />}
     </div>
   );
 }

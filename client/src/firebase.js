@@ -1,4 +1,5 @@
-import { initializeApp } from 'firebase/app';
+// src/firebase.js
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -7,8 +8,10 @@ const firebaseConfig = {
   projectId: "video-confering-app",
   storageBucket: "video-confering-app.appspot.com",
   messagingSenderId: "721766669304",
-  appId: "1:721766669304:web:21714dade807c0e8b2d40d", // Replace with actual appId
+  appId: "1:721766669304:web:21714dade807c0e8b2d40d",
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const auth = getAuth(app);
+
+export { auth };

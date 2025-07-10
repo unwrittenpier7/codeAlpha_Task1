@@ -4,7 +4,7 @@ import Peer from 'simple-peer';
 import io from 'socket.io-client';
 import CryptoJS from 'crypto-js';
 
-const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || 'fallback-secret-key';
+const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || 'c0d15d4b86a55936b6429ce88e12d7dda02ec848b171d7be420d3fd8946ee3f9';
 const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000');
 
 export default function useWebRTC(roomId, localStream, currentUser) {
