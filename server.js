@@ -1,19 +1,29 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+
 const app = express();
-const server = require('http').createServer(app);
-const io = require('socket.io')(server, {
+const server = http.createServer(app);
+
+// ✅ Update CORS to allow both local & Vercel origins
+const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: [
+      'http://localhost:3000', // local dev
+      'https://code-alpha-task1-six.vercel.app' // your deployed frontend
+    ],
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
 app.get('/', (req, res) => {
-  res.send('Video Conference Server');
+  res.send('Video Conference Server Running 🚀');
 });
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('✅ User connected:', socket.id);
 
   socket.on('join-room', (roomId, userId) => {
     socket.join(roomId);
@@ -45,4 +55,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`✅ Socket.IO server running on port ${PORT}`);
+});

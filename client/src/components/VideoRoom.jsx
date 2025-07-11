@@ -6,7 +6,9 @@ import CryptoJS from 'crypto-js';
 import Video from './Video';
 import Whiteboard from './Whiteboard';
 
-const socket = io('http://localhost:5000'); // Update to your deployed URL if needed
+// ✅ Use environment variable for socket server
+const socket = io(process.env.REACT_APP_SOCKET_SERVER_URL || 'http://localhost:5000');
+
 const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || 'fallback-secret-key';
 
 function VideoRoom({ user }) {
