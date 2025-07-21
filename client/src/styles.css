@@ -95,3 +95,8 @@ canvas {
 .file-share input[type='file'] {
   margin: 10px 0;
 }
+video.speaking {
+  border: 3px solid #00ff00;
+  box-shadow: 0 0 10px #00ff00;
+}
+
