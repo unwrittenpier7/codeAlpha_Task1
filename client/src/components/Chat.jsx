@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import socket from '../utils/socket'; // assume socket is initialized and exported from utils/socket.js
+import socket from '../utils/socket'; 
+// assume socket is initialized and exported from utils/socket.js
 
 function Chat({ roomId, user }) {
   const [message, setMessage] = useState('');
