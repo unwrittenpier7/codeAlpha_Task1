@@ -8,10 +8,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: [
-      'http://localhost:3000',
-      'https://code-alpha-task1-six.vercel.app',
-    ],
+    origin: ['http://localhost:3000', 'https://code-alpha-task1-six.vercel.app'],
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -24,7 +21,6 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
 
-  // ✅ Join Room with displayName
   socket.on('join-room', (roomId, userId, displayName) => {
     socket.join(roomId);
     socket.data = { userId, displayName };
@@ -32,7 +28,7 @@ io.on('connection', (socket) => {
     // Notify others
     socket.to(roomId).emit('user-connected', userId, displayName);
 
-    // Send full participants list
+    // Send participant list
     const participants = [];
     const clients = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
     for (let clientId of clients) {
@@ -45,13 +41,12 @@ io.on('connection', (socket) => {
         });
       }
     }
-
     io.to(roomId).emit('participants-update', participants);
 
+    // Handle disconnection
     socket.on('disconnect', () => {
       socket.to(roomId).emit('user-disconnected', userId);
 
-      // Send updated participants list
       const updated = [];
       const clients = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
       for (let clientId of clients) {
@@ -69,7 +64,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // ✅ WebRTC signaling
   socket.on('send-signal', (payload) => {
     io.to(payload.userToSignal).emit('receive-signal', {
       signal: payload.signal,
@@ -81,17 +75,14 @@ io.on('connection', (socket) => {
     io.to(payload.id).emit('return-signal', payload);
   });
 
-  // ✅ File sharing
   socket.on('send-file', ({ fileName, fileData, senderId, roomId }) => {
     socket.to(roomId).emit('receive-file', { fileName, fileData, senderId });
   });
 
-  // ✅ Whiteboard drawing
   socket.on('send-drawing', ({ roomId, data }) => {
     socket.to(roomId).emit('receive-drawing', data);
   });
 
-  // ✅ Chat messaging
   socket.on('chat-message', ({ sender, message }) => {
     const rooms = Array.from(socket.rooms).filter((r) => r !== socket.id);
     for (let roomId of rooms) {

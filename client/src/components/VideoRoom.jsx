@@ -15,12 +15,12 @@ function VideoRoom({ user }) {
   const { roomId } = useParams();
   const [peers, setPeers] = useState([]);
   const [participants, setParticipants] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [files, setFiles] = useState([]);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const [showFileShare, setShowFileShare] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [files, setFiles] = useState([]);
-  const [chatMessages, setChatMessages] = useState([]);
   const [activeSpeakerId, setActiveSpeakerId] = useState(null);
 
   const userVideo = useRef();
@@ -32,48 +32,48 @@ function VideoRoom({ user }) {
   const analyserRef = useRef();
 
   useEffect(() => {
-    const setupMedia = async () => {
+    const initMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         streamRef.current = stream;
         if (userVideo.current) userVideo.current.srcObject = stream;
 
         socket.emit('join-room', roomId, socket.id, user?.phoneNumber || 'Guest');
-
         setupAudioAnalyser(stream, socket.id);
 
         socket.on('participants-update', setParticipants);
 
         socket.on('user-connected', (userId, displayName) => {
           const peer = createPeer(userId, socket.id, stream);
-          peersRef.current.push({ peerId: userId, peer });
-          setPeers((prev) => [...prev, { peerId: userId, peer, displayName }]);
-        });
-
-        socket.on('user-disconnected', (userId) => {
-          const peerObj = peersRef.current.find((p) => p.peerId === userId);
-          if (peerObj) peerObj.peer.destroy();
-          peersRef.current = peersRef.current.filter((p) => p.peerId !== userId);
-          setPeers((prev) => prev.filter((p) => p.peerId !== userId));
+          peersRef.current.push({ peerId: userId, peer, displayName });
+          setPeers(prev => [...prev, { peerId: userId, peer, displayName }]);
         });
 
         socket.on('receive-signal', (payload) => {
-          const decryptedSignal = CryptoJS.AES.decrypt(payload.signal, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
-          const peer = addPeer(JSON.parse(decryptedSignal), payload.callerId, stream);
+          const decrypted = CryptoJS.AES.decrypt(payload.signal, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
+          const signal = JSON.parse(decrypted);
+          const peer = addPeer(signal, payload.callerId, stream);
           peersRef.current.push({ peerId: payload.callerId, peer });
-          setPeers((prev) => [...prev, { peerId: payload.callerId, peer }]);
+          setPeers(prev => [...prev, { peerId: payload.callerId, peer }]);
         });
 
         socket.on('return-signal', (payload) => {
-          const peerObj = peersRef.current.find((p) => p.peerId === payload.id);
+          const peerObj = peersRef.current.find(p => p.peerId === payload.id);
           if (peerObj) {
-            const decryptedSignal = CryptoJS.AES.decrypt(payload.signal, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
-            peerObj.peer.signal(JSON.parse(decryptedSignal));
+            const decrypted = CryptoJS.AES.decrypt(payload.signal, ENCRYPTION_KEY).toString(CryptoJS.enc.Utf8);
+            peerObj.peer.signal(JSON.parse(decrypted));
           }
         });
 
+        socket.on('user-disconnected', (userId) => {
+          const peerObj = peersRef.current.find(p => p.peerId === userId);
+          if (peerObj) peerObj.peer.destroy();
+          peersRef.current = peersRef.current.filter(p => p.peerId !== userId);
+          setPeers(prev => prev.filter(p => p.peerId !== userId));
+        });
+
         socket.on('receive-file', ({ fileName, fileData, senderId }) => {
-          setFiles((prev) => [...prev, { fileName, fileData, senderId }]);
+          setFiles(prev => [...prev, { fileName, fileData, senderId }]);
         });
 
         socket.on('receive-drawing', (data) => {
@@ -81,65 +81,93 @@ function VideoRoom({ user }) {
         });
 
         socket.on('chat-message', ({ sender, message }) => {
-          setChatMessages((prev) => [...prev, { sender, message }]);
+          setChatMessages(prev => [...prev, { sender, message }]);
         });
+
       } catch (err) {
-        console.error('Error accessing media devices:', err);
+        console.error('Media Error:', err);
       }
     };
 
-    setupMedia();
+    initMedia();
 
     return () => {
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
       socket.disconnect();
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      screenStreamRef.current?.getTracks().forEach(t => t.stop());
     };
-  }, [roomId]);
+  }, [roomId, user?.phoneNumber]);
 
   const setupAudioAnalyser = (stream, socketId) => {
-    const audioCtx = new AudioContext();
-    const analyser = audioCtx.createAnalyser();
-    const micSource = audioCtx.createMediaStreamSource(stream);
-    micSource.connect(analyser);
+    const ctx = new AudioContext();
+    const analyser = ctx.createAnalyser();
+    const source = ctx.createMediaStreamSource(stream);
+    source.connect(analyser);
     analyser.fftSize = 512;
     analyserRef.current = analyser;
 
     const buffer = new Uint8Array(analyser.frequencyBinCount);
 
-    const detectSpeaking = () => {
+    const detect = () => {
       analyser.getByteFrequencyData(buffer);
       const volume = buffer.reduce((a, b) => a + b, 0);
-      if (volume > 3000) {
-        setActiveSpeakerId(socketId);
-      }
-      requestAnimationFrame(detectSpeaking);
+      if (volume > 3000) setActiveSpeakerId(socketId);
+      requestAnimationFrame(detect);
     };
-    detectSpeaking();
+    detect();
   };
 
-  function createPeer(userToSignal, callerId, stream) {
+  const createPeer = (userToSignal, callerId, stream) => {
     const peer = new Peer({ initiator: true, trickle: false, stream });
-    peer.on('signal', (signal) => {
+    peer.on('signal', signal => {
       const encrypted = CryptoJS.AES.encrypt(JSON.stringify(signal), ENCRYPTION_KEY).toString();
       socket.emit('send-signal', { userToSignal, callerId, signal: encrypted });
     });
     return peer;
-  }
+  };
 
-  function addPeer(incomingSignal, callerId, stream) {
+  const addPeer = (signal, callerId, stream) => {
     const peer = new Peer({ initiator: false, trickle: false, stream });
-    peer.on('signal', (signal) => {
+    peer.on('signal', signal => {
       const encrypted = CryptoJS.AES.encrypt(JSON.stringify(signal), ENCRYPTION_KEY).toString();
-      socket.emit('return-signal', { signal: encrypted, id: callerId });
+      socket.emit('return-signal', { id: callerId, signal: encrypted });
     });
-    peer.signal(incomingSignal);
+    peer.signal(signal);
     return peer;
-  }
+  };
+
+  const toggleMute = () => {
+    const track = streamRef.current?.getAudioTracks()[0];
+    if (track) {
+      track.enabled = !track.enabled;
+      setIsMuted(!track.enabled);
+    }
+  };
+
+  const startScreenShare = async () => {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenStreamRef.current = screenStream;
+      screenVideo.current.srcObject = screenStream;
+      setIsScreenSharing(true);
+      screenStream.getVideoTracks()[0].onended = stopScreenShare;
+
+      peersRef.current.forEach(({ peer }) => {
+        peer.replaceTrack(streamRef.current.getVideoTracks()[0], screenStream.getVideoTracks()[0], streamRef.current);
+      });
+    } catch (err) {
+      console.error('Screen sharing error:', err);
+    }
+  };
+
+  const stopScreenShare = () => {
+    screenStreamRef.current?.getTracks().forEach(track => track.stop());
+    setIsScreenSharing(false);
+  };
 
   const sendMessage = (message) => {
     socket.emit('chat-message', { sender: user?.phoneNumber || 'Guest', message });
-    setChatMessages((prev) => [...prev, { sender: 'You', message }]);
+    setChatMessages(prev => [...prev, { sender: 'You', message }]);
   };
 
   const handleFileUpload = (e) => {
@@ -150,40 +178,11 @@ function VideoRoom({ user }) {
       socket.emit('send-file', {
         fileName: file.name,
         fileData: reader.result,
-        senderId: user?.uid || 'guest',
+        senderId: user?.uid || 'Guest',
         roomId,
       });
     };
     reader.readAsDataURL(file);
-  };
-
-  const toggleMute = () => {
-    const audioTrack = streamRef.current?.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setIsMuted(!audioTrack.enabled);
-    }
-  };
-
-  const startScreenShare = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      screenStreamRef.current = stream;
-      screenVideo.current.srcObject = stream;
-      setIsScreenSharing(true);
-      stream.getVideoTracks()[0].onended = stopScreenShare;
-
-      peersRef.current.forEach(({ peer }) => {
-        peer.replaceTrack(streamRef.current.getVideoTracks()[0], stream.getVideoTracks()[0], streamRef.current);
-      });
-    } catch (err) {
-      console.error('Screen share error:', err);
-    }
-  };
-
-  const stopScreenShare = () => {
-    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
-    setIsScreenSharing(false);
   };
 
   return (
@@ -203,8 +202,8 @@ function VideoRoom({ user }) {
       <div className="video-section">
         <video muted ref={userVideo} autoPlay playsInline className={activeSpeakerId === socket.id ? 'speaking' : ''} />
         {isScreenSharing && <video ref={screenVideo} autoPlay playsInline />}
-        {peers.map((peer) => (
-          <Video key={peer.peerId} peer={peer.peer} isSpeaking={peer.peerId === activeSpeakerId} />
+        {peers.map((p) => (
+          <Video key={p.peerId} peer={p.peer} isSpeaking={p.peerId === activeSpeakerId} />
         ))}
       </div>
 
@@ -213,26 +212,18 @@ function VideoRoom({ user }) {
           {isScreenSharing ? 'Stop Screen' : 'Share Screen'}
         </button>
         <button onClick={toggleMute}>{isMuted ? 'Unmute' : 'Mute'}</button>
-        <button onClick={() => setShowWhiteboard((prev) => !prev)}>
-          {showWhiteboard ? 'Hide Whiteboard' : 'Show Whiteboard'}
-        </button>
-        <button onClick={() => setShowFileShare((prev) => !prev)}>
-          {showFileShare ? 'Hide Files' : 'Share File'}
-        </button>
+        <button onClick={() => setShowWhiteboard(p => !p)}>{showWhiteboard ? 'Hide' : 'Whiteboard'}</button>
+        <button onClick={() => setShowFileShare(p => !p)}>{showFileShare ? 'Hide' : 'Files'}</button>
       </div>
 
       {showWhiteboard && <Whiteboard roomId={roomId} canvasRef={canvasRef} />}
-
       {showFileShare && (
         <div className="file-share">
           <input type="file" onChange={handleFileUpload} />
           <ul>
             {files.map((f, idx) => (
               <li key={idx}>
-                <a href={f.fileData} download={f.fileName}>
-                  {f.fileName}
-                </a>{' '}
-                (from {f.senderId})
+                <a href={f.fileData} download={f.fileName}>{f.fileName}</a> (from {f.senderId})
               </li>
             ))}
           </ul>
