@@ -1,12 +1,17 @@
 import React from 'react';
 import './Avatar.css';
 
-function Avatar({ name, isMuted, isSpeaking }) {
+function Avatar({ name = 'User', muted = false }) {
+  const initials = name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase();
+
   return (
-    <div className={`avatar-container ${isSpeaking ? 'speaking' : ''}`}>
-      <div className="avatar-circle">{name?.charAt(0).toUpperCase()}</div>
-      <span className={`status ${isMuted ? 'muted' : 'unmuted'}`} />
-      <p>{name}</p>
+    <div className={`avatar ${muted ? 'muted' : ''}`}>
+      <div className="avatar-initials">{initials}</div>
+      {muted && <span className="muted-indicator">🔇</span>}
     </div>
   );
 }

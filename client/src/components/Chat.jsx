@@ -1,56 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
-import socket from '../utils/socket'; 
-// assume socket is initialized and exported from utils/socket.js
+import React, { useState } from 'react';
+import './Chat.css';
 
-function Chat({ roomId, user }) {
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState([]);
-  const chatEndRef = useRef();
+function Chat({ messages, onSend }) {
+  const [text, setText] = useState('');
 
-  useEffect(() => {
-    socket.on('chat-message', ({ sender, content }) => {
-      setMessages((prev) => [...prev, { sender, content }]);
-    });
-
-    return () => {
-      socket.off('chat-message');
-    };
-  }, []);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const sendMessage = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!message.trim()) return;
-
-    socket.emit('chat-message', {
-      roomId,
-      sender: user?.phoneNumber || user?.email || 'Guest',
-      content: message,
-    });
-
-    setMessages((prev) => [...prev, { sender: 'You', content: message }]);
-    setMessage('');
+    if (text.trim()) {
+      onSend(text);
+      setText('');
+    }
   };
 
   return (
     <div className="chat-box">
+      <h4>Chat</h4>
       <div className="chat-messages">
         {messages.map((msg, idx) => (
-          <div key={idx}>
-            <strong>{msg.sender}: </strong>{msg.content}
+          <div key={idx} className="chat-message">
+            <strong>{msg.sender}:</strong> {msg.message}
           </div>
         ))}
-        <div ref={chatEndRef} />
       </div>
-      <form onSubmit={sendMessage} className="chat-input">
+      <form onSubmit={handleSubmit} className="chat-form">
         <input
           type="text"
-          value={message}
-          placeholder="Type your message..."
-          onChange={(e) => setMessage(e.target.value)}
+          value={text}
+          placeholder="Type a message..."
+          onChange={(e) => setText(e.target.value)}
         />
         <button type="submit">Send</button>
       </form>
